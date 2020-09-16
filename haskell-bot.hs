@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiWayIf #-}
 import Control.Monad (when)
 import Data.Maybe
 import qualified Data.Text as T
@@ -22,10 +23,13 @@ helpText
   = T.unlines
       ["Hello, I'm a bot written entirely in haskell!",
        "Here is a list of my commands (`->` is my prefix)!",
-       "-> help >> show this message", "-> succ {n} >> return n+1", "-> magic man >> print the bible of Magic Man"]
+       "-> help >> show this message", "-> succ {n} >> return n+1",
+       "-> magic man >> print the bible of Magic Man",
+       "-> badam {n} >> print out n badams"]
 
 magicText :: T.Text
-magicText = "In the beginning, there was the Ceiling. And Magic Man said, \"Magic\". And then there was magic. And Magic Man said, \"Magic Town\". And then there was Magic Town. And Magic Man wandered Magic Town, and there wasn't enough magic. So Magic Man said, \"Let there be Magic People\". And there was magic people. And the Magic People understood that they were magic, and that Magic Man was magic, and that Magic Town was magic. And then Magic Man realized that there weren't enough ceilings. So magic man thought, \"what if the entire town was a ceiling\"? And so Magic Man said, \"Let there be Ceilings\". And then Magic Town was the ceiling to the entire world in which we now live."
+magicText
+  = "In the beginning, there was the Ceiling. And Magic Man said, \"Magic\". And then there was magic. And Magic Man said, \"Magic Town\". And then there was Magic Town. And Magic Man wandered Magic Town, and there wasn't enough magic. So Magic Man said, \"Let there be Magic People\". And there was magic people. And the Magic People understood that they were magic, and that Magic Man was magic, and that Magic Town was magic. And then Magic Man realized that there weren't enough ceilings. So magic man thought, \"what if the entire town was a ceiling\"? And so Magic Man said, \"Let there be Ceilings\". And then Magic Town was the ceiling to the entire world in which we now live."
 
 main :: IO ()
 main = test
@@ -34,8 +38,10 @@ test :: IO ()
 test
   = do userFacingError <- runDiscord $
                             def{discordToken =
+                                  "",
                                 discordOnEvent = eventHandler}
        TIO.putStrLn userFacingError
+
 eventHandler :: Event -> DiscordHandler ()
 eventHandler event
   = case event of
@@ -59,8 +65,21 @@ respondToMessage message = fromMaybe "Something went wrong." go
                          "succ" -> fmap T.pack $
                                      fmap (show . succ)
                                        (S.readMay $ head args :: Maybe Integer)
-                         "magic" -> case head args of "man" -> Just magicText
-                                                      otherwise -> Nothing
+                         "magic" -> case head args of
+                                        "man" -> Just magicText
+                                        otherwise -> Nothing
+                         "badam" -> if | inBounds badamNumber ->
+                                         Just $
+                                           T.concat $
+                                             replicate badamNumber
+                                               "<:badam:739918421445312573>"
+                                       | otherwise ->
+                                         Just
+                                           "The number of badams must lie between 1 and 74 inclusive"
+                           where inBounds x = (x >= 1) && (x <= 74)
+                                 badamNumber
+                                   = fromMaybe 1
+                                       (S.readMay $ head args :: Maybe Int)
                          otherwise -> Nothing
                 otherwise -> Nothing
 
