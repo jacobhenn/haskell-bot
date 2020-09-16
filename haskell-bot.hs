@@ -34,7 +34,6 @@ test :: IO ()
 test
   = do userFacingError <- runDiscord $
                             def{discordToken =
-                                  "",
                                 discordOnEvent = eventHandler}
        TIO.putStrLn userFacingError
 eventHandler :: Event -> DiscordHandler ()
