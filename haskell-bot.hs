@@ -25,11 +25,37 @@ helpText
        "Here is a list of my commands (`->` is my prefix)!",
        "-> help >> show this message", "-> succ {n} >> return n+1",
        "-> magic man >> print the bible of Magic Man",
-       "-> badam {n} >> print out n badams"]
+       "-> multi {emoji} {n} >> print out n emoji",
+       "-> rect {emoji} {x} {y} >> print an x by y rectanlge of emoji"]
 
 magicText :: T.Text
 magicText
   = "In the beginning, there was the Ceiling. And Magic Man said, \"Magic\". And then there was magic. And Magic Man said, \"Magic Town\". And then there was Magic Town. And Magic Man wandered Magic Town, and there wasn't enough magic. So Magic Man said, \"Let there be Magic People\". And there was magic people. And the Magic People understood that they were magic, and that Magic Man was magic, and that Magic Town was magic. And then Magic Man realized that there weren't enough ceilings. So magic man thought, \"what if the entire town was a ceiling\"? And so Magic Man said, \"Let there be Ceilings\". And then Magic Town was the ceiling to the entire world in which we now live."
+
+emojiDict :: [(String, String)]
+emojiDict
+  = [("wilson", "740374394592821319"), ("chair_alex", "755864191587582074"),
+     ("kongus_diagonalus", "740368871231324230"),
+     ("coolkid", "739657840800825365"), ("stonalisa", "739689758565072916"),
+     ("stevehead", "739653619896418324"), ("steveteeth", "739653810745638972"),
+     ("steveeyes", "739653743150235650"), ("stevechin", "739653854987288656"),
+     ("spongehead", "739654027993808926"), ("spongelegs", "739654233661636729"),
+     ("phant", "739642554177552526"), ("linusquits", "739653472894451742"),
+     ("lemonke", "739642776613945346"), ("jesus", "739653385464053934"),
+     ("heaventime", "739642665783525439"),
+     ("hangarinnose", "739690392210899065"), ("carlo", "739654565149802516")]
+
+emojiGen :: String -> Maybe T.Text
+emojiGen x
+  = fmap T.pack $
+      fmap (\ y -> "<:" ++ x ++ ":" ++ y ++ ">") $ lookup x emojiDict
+
+restrict :: Ord a => a -> a -> a -> a
+restrict l u x
+  = if | (x >= l) && (x <= u) -> x
+       | (x >= l) -> u
+       | (x <= u) -> l
+       | otherwise -> undefined
 
 main :: IO ()
 main = test
@@ -62,24 +88,39 @@ respondToMessage message = fromMaybe "Something went wrong." go
                          "help" -> Just helpText
                          otherwise -> Nothing
                 2 -> case command of
-                         "succ" -> fmap T.pack $
-                                     fmap (show . succ)
-                                       (S.readMay $ head args :: Maybe Integer)
                          "magic" -> case head args of
                                         "man" -> Just magicText
                                         otherwise -> Nothing
-                         "badam" -> if | inBounds badamNumber ->
+                         otherwise -> Nothing
+                3 -> case command of
+                         "multi" -> if | isJust emoji ->
                                          Just $
                                            T.concat $
-                                             replicate badamNumber
-                                               "<:badam:739918421445312573>"
-                                       | otherwise ->
-                                         Just
-                                           "The number of badams must lie between 1 and 74 inclusive"
-                           where inBounds x = (x >= 1) && (x <= 74)
-                                 badamNumber
-                                   = fromMaybe 1
-                                       (S.readMay $ head args :: Maybe Int)
+                                             replicate emojiCount $
+                                               fromJust emoji
+                                       | otherwise -> Nothing
+                           where emojiCount
+                                   = restrict 1 100 $
+                                       fromMaybe 1 $ S.readMay $ last args
+                                       :: Int
+                                 emoji = emojiGen $ head args
+                         otherwise -> Nothing
+                4 -> case command of
+                         "rect" -> if | isJust emoji ->
+                                        Just $
+                                          T.unlines $
+                                            map T.concat $
+                                              replicate y $
+                                                replicate x $ fromJust emoji
+                                      | otherwise -> Nothing
+                           where [x, y]
+                                   = map
+                                       (\ a ->
+                                          restrict 1 25 $
+                                            fromMaybe 1 $ S.readMay $ args !! a
+                                            :: Int)
+                                       [1, 2]
+                                 emoji = emojiGen $ head args
                          otherwise -> Nothing
                 otherwise -> Nothing
 
