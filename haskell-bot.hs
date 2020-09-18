@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+-- Personal Discord Bot written in Haskell
+-- Author: Jacob Henn
+--------------------------------------------------------------------------------
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MultiWayIf #-}
 import Control.Monad (when)
@@ -14,24 +18,33 @@ import qualified Safe as S
 import UnliftIO (liftIO)
 import UnliftIO.Concurrent
 
+--------------------------------------------------------------------------------
+-- some functions use Either error handling, which I don't need
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Left a) = Nothing
 eitherToMaybe (Right b) = Just b
 
+--------------------------------------------------------------------------------
+-- the text printed by the help function
 helpText :: T.Text
 helpText
   = T.unlines
       ["Hello, I'm a bot written entirely in haskell!",
        "Here is a list of my commands (`->` is my prefix)!",
-       "-> help >> show this message", "-> succ {n} >> return n+1",
+       "-> help >> show this message",
        "-> magic man >> print the bible of Magic Man",
        "-> multi {emoji} {n} >> print out n emoji",
        "-> rect {emoji} {x} {y} >> print an x by y rectanlge of emoji"]
 
+--------------------------------------------------------------------------------
+-- the bible of Magic Man
 magicText :: T.Text
 magicText
   = "In the beginning, there was the Ceiling. And Magic Man said, \"Magic\". And then there was magic. And Magic Man said, \"Magic Town\". And then there was Magic Town. And Magic Man wandered Magic Town, and there wasn't enough magic. So Magic Man said, \"Let there be Magic People\". And there was magic people. And the Magic People understood that they were magic, and that Magic Man was magic, and that Magic Town was magic. And then Magic Man realized that there weren't enough ceilings. So magic man thought, \"what if the entire town was a ceiling\"? And so Magic Man said, \"Let there be Ceilings\". And then Magic Town was the ceiling to the entire world in which we now live."
 
+--------------------------------------------------------------------------------
+-- a dictionary that matches the name of server emoji with their emoji ID (get 
+-- emoji ID by typing `\:emoji:`)
 emojiDict :: [(String, String)]
 emojiDict
   = [("wilson", "740374394592821319"), ("chair_alex", "755864191587582074"),
@@ -46,41 +59,53 @@ emojiDict
      ("hangarinnose", "739690392210899065"), ("carlo", "739654565149802516"),
      ("badam", "739918421445312573")]
 
+--------------------------------------------------------------------------------
+-- take an emoji name and format it to be displayed correctly in Discord
 emojiGen :: String -> Maybe T.Text
 emojiGen x
   = fmap T.pack $
       fmap (\ y -> "<:" ++ x ++ ":" ++ y ++ ">") $ lookup x emojiDict
 
-restrict :: Ord a => a -> a -> a -> a
-restrict l u x
-  = if | (x >= l) && (x <= u) -> x
-       | (x >= l) -> u
-       | (x <= u) -> l
-       | otherwise -> undefined
+--------------------------------------------------------------------------------
+-- check if a message lies within the internal 2k char limit
+limitCheck :: T.Text -> T.Text
+limitCheck x
+  | T.length x < 2000 = x
+  | otherwise = "Length of output must not exceed 2000 characters."
 
+--------------------------------------------------------------------------------
+-- main function
 main :: IO ()
-main = test
+main = secureMain
 
-test :: IO ()
-test
+--------------------------------------------------------------------------------
+-- secure main function
+secureMain :: IO ()
+secureMain
   = do userFacingError <- runDiscord $
                             def{discordToken =
                                   "",
                                 discordOnEvent = eventHandler}
        TIO.putStrLn userFacingError
 
+--------------------------------------------------------------------------------
+-- hook that is called on an Event, currently only a new message event.
 eventHandler :: Event -> DiscordHandler ()
 eventHandler event
   = case event of
-        MessageCreate m -> when (not (fromBot m) && isCommand (messageText m)) $
+        MessageCreate m -> when (not (isFromBot m) && isCommand (messageText m))
+                             $
                              do _ <- restCall
                                        (R.CreateMessage (messageChannel m)
                                           (respondToMessage m))
                                 pure ()
         _ -> pure ()
 
+--------------------------------------------------------------------------------
+-- function that is called on the message text and returns the reply
 respondToMessage :: Message -> T.Text
-respondToMessage message = fromMaybe "Something went wrong." go
+respondToMessage message
+  = fromMaybe "Something went wrong." $ fmap limitCheck go
   where messageString = T.unpack (messageText message)
         (command : args) = drop 1 $ words messageString
         go
@@ -89,11 +114,16 @@ respondToMessage message = fromMaybe "Something went wrong." go
                          "help" -> Just helpText
                          otherwise -> Nothing
                 2 -> case command of
+                         --------------------------------------------------------------------------------
+                         -- print the bible of Magic Man
                          "magic" -> case head args of
                                         "man" -> Just magicText
                                         otherwise -> Nothing
                          otherwise -> Nothing
                 3 -> case command of
+                         --------------------------------------------------------------------------------
+                         -- print out a specified emoji a specified number of
+                         -- times
                          "multi" -> if | isJust emoji ->
                                          Just $
                                            T.concat $
@@ -101,32 +131,35 @@ respondToMessage message = fromMaybe "Something went wrong." go
                                                fromJust emoji
                                        | otherwise -> Nothing
                            where emojiCount
-                                   = restrict 1 100 $
-                                       fromMaybe 1 $ S.readMay $ last args
-                                       :: Int
+                                   = fromMaybe 1 $ S.readMay $ last args :: Int
                                  emoji = emojiGen $ head args
                          otherwise -> Nothing
                 4 -> case command of
-                         "rect" -> if | isJust emoji ->
+                         --------------------------------------------------------------------------------
+                         -- print out a rectangle of specified dimensions of a
+                         -- specified emoji
+                         "rect" -> if | isJust emoji && and (map isJust [x, y])
+                                        ->
                                         Just $
                                           T.unlines $
                                             map T.concat $
-                                              replicate y $
-                                                replicate x $ fromJust emoji
+                                              replicate (fromJust y) $
+                                                replicate (fromJust x) $
+                                                  fromJust emoji
                                       | otherwise -> Nothing
                            where [x, y]
-                                   = map
-                                       (\ a ->
-                                          restrict 1 25 $
-                                            fromMaybe 1 $ S.readMay $ args !! a
-                                            :: Int)
-                                       [1, 2]
+                                   = map S.readMay $ take 2 $ drop 1 args ::
+                                       [Maybe Int]
                                  emoji = emojiGen $ head args
                          otherwise -> Nothing
                 otherwise -> Nothing
 
-fromBot :: Message -> Bool
-fromBot m = userIsBot (messageAuthor m)
+--------------------------------------------------------------------------------
+-- is the message from a bot user?
+isFromBot :: Message -> Bool
+isFromBot m = userIsBot (messageAuthor m)
 
+--------------------------------------------------------------------------------
+-- does the message contain the relevant prefix?
 isCommand :: T.Text -> Bool
 isCommand = T.isPrefixOf "->"
